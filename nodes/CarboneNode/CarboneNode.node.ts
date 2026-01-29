@@ -1,4 +1,4 @@
-import {IExecuteFunctions} from 'n8n-core';
+import { IExecuteFunctions } from 'n8n-core';
 import {
 	INodeExecutionData,
 	INodeProperties,
@@ -7,7 +7,13 @@ import {
 	INodeTypeDescription,
 	NodeOperationError,
 } from 'n8n-workflow';
-import {convertDocumentToPdf, isOfficeDocument, renderDocument, buildOptions} from './CarboneUtils';
+import {
+	convertDocumentToPdf,
+	isSupportedDocument,
+	getExtensionFromMimeType,
+	renderDocument,
+	buildOptions,
+} from './CarboneUtils';
 
 const nodeOperations: INodePropertyOptions[] = [
 	{
@@ -33,7 +39,7 @@ const nodeOperationOptions: INodeProperties[] = [
 		default: '{}',
 		description: 'This data will be used to fill the template',
 		displayOptions: {
-			show: {operation: ['render']},
+			show: { operation: ['render'] },
 		},
 	},
 	{
@@ -43,7 +49,7 @@ const nodeOperationOptions: INodeProperties[] = [
 		default: 'data',
 		description: 'Name of the binary property which holds the document to be used',
 		displayOptions: {
-			show: {operation: ['render', 'toPdf']},
+			show: { operation: ['render', 'toPdf'] },
 		},
 	},
 	{
@@ -53,7 +59,7 @@ const nodeOperationOptions: INodeProperties[] = [
 		default: 'data',
 		description: 'Name of the binary property which will hold the converted document',
 		displayOptions: {
-			show: {operation: ['render', 'toPdf']},
+			show: { operation: ['render', 'toPdf'] },
 		},
 	},
 ];
@@ -116,7 +122,7 @@ const nodeOptions: INodeProperties[] = [
 			},
 		],
 		displayOptions: {
-			show: {operation: ['render']},
+			show: { operation: ['render'] },
 		},
 	},
 ];
@@ -151,7 +157,7 @@ export class CarboneNode implements INodeType {
 				type: 'notice',
 				default: '',
 				displayOptions: {
-					show: {operation: ['toPdf']},
+					show: { operation: ['toPdf'] },
 				},
 			},
 			...nodeOperationOptions,
@@ -175,28 +181,28 @@ export class CarboneNode implements INodeType {
 				const newItem: INodeExecutionData = {
 					json: {},
 					binary: {},
-					pairedItem: {item: itemIndex},
+					pairedItem: { item: itemIndex },
 				};
 
 				if (operation === 'render') {
 					const context = JSON.parse(this.getNodeParameter('context', itemIndex, '') as string);
 
 					const binaryData = this.helpers.assertBinaryData(itemIndex, dataPropertyName);
-					if (!isOfficeDocument(binaryData)) {
+					if (!isSupportedDocument(binaryData)) {
 						throw new NodeOperationError(
 							this.getNode(),
-							`Binary property "${dataPropertyName}" should be a DOCX (Word), XLSX (Excel) or PPTX (Powerpoint) file, was ${binaryData.mimeType} instead`,
+							`Binary property "${dataPropertyName}" should be a supported document type (DOCX, XLSX, PPTX, ODT, ODS, ODP, ODG, HTML, XML, TXT, CSV), was ${binaryData.mimeType} instead`,
 							{
 								itemIndex,
 							},
 						);
 					}
 					let fileContent = await this.helpers.getBinaryDataBuffer(itemIndex, dataPropertyName);
-					console.debug("content =", fileContent.subarray(0, 30).toString("base64") + "...")
+					console.debug('content =', fileContent.subarray(0, 30).toString('base64') + '...');
 
 					const options = buildOptions(this, itemIndex);
 					const rendered = await renderDocument(fileContent, context, options);
-					console.debug("rendered =", rendered.subarray(0, 30).toString("base64") + "...")
+					console.debug('rendered =', rendered.subarray(0, 30).toString('base64') + '...');
 
 					newItem.json = context; // Present the used context as the node's JSON output
 
@@ -207,18 +213,21 @@ export class CarboneNode implements INodeType {
 						item.binary![dataPropertyName].mimeType,
 					);
 				} else if (operation === 'toPdf') {
-					this.helpers.assertBinaryData(itemIndex, dataPropertyName);
+					const binaryData = this.helpers.assertBinaryData(itemIndex, dataPropertyName);
 
 					let fileContent = await this.helpers.getBinaryDataBuffer(itemIndex, dataPropertyName);
-					console.debug("content =", fileContent.subarray(0, 30).toString("base64") + "...")
+					console.debug('content =', fileContent.subarray(0, 30).toString('base64') + '...');
 
-					const converted = await convertDocumentToPdf(fileContent);
-					console.debug("converted =", converted.subarray(0, 30).toString("base64") + "...")
+					const extension = getExtensionFromMimeType(binaryData.mimeType) ?? 'docx';
+					const converted = await convertDocumentToPdf(fileContent, extension);
+					console.debug('converted =', converted.subarray(0, 30).toString('base64') + '...');
 
 					// Add the converted file in a new property
+					const originalFileName = item.binary![dataPropertyName].fileName ?? 'out.docx';
+					const pdfFileName = originalFileName.replace(/\.[^.]+$/, '.pdf');
 					newItem.binary![dataPropertyNameOut] = await this.helpers.prepareBinaryData(
 						converted,
-						item.binary![dataPropertyName].fileName?.replace('.docx', '.pdf') ?? "out.pdf",
+						pdfFileName,
 						'application/pdf',
 					);
 				}

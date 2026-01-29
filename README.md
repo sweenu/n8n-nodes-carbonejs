@@ -17,7 +17,7 @@
 
 This is an n8n community node. It lets you use [the Carbone JS library](https://carbone.io/) in your n8n workflows.
 
-Carbone is a report generator that lets you render JSON data into DOCX, PDF, XLSX and more formats:
+Carbone is a report generator that lets you render JSON data into DOCX, PDF, XLSX, ODT, ODS, ODP, HTML, XML, TXT, CSV and more formats:
 
 ![a diagram of the dataflow in Carbone](https://carbone.io/img/doc/carboneWorkflow.svg)
 
@@ -48,8 +48,14 @@ nodes documentation.
 ### Render Document
 
 Must receive an input item with both `$json` and `$binary` keys. The `$json` key may be used to compose the "context",
-which will be provided to the templating engine. The `$binary` key should contain a DOCX document that contains a valid
+which will be provided to the templating engine. The `$binary` key should contain a document that contains a valid
 Carbone template.
+
+**Supported template formats:**
+- Microsoft Office: DOCX, XLSX, PPTX
+- OpenDocument: ODT, ODS, ODP, ODG
+- Web formats: HTML, XML
+- Text formats: TXT, CSV
 
 This operation can take "advanced options", which are passed directly to Carbone's rendering engine.
 See [Carbone's docs](https://carbone.io/api-reference.html#options) for information about each option. They appear in
@@ -62,7 +68,7 @@ the Options dropdown, at the bottom of the Render operation:
 > **NOTE:** This operation requires LibreOffice to be installed. If using the native NPM install, you should install
 > LibreOffice system-wide. If using the Docker images, this operation doesn't seem to work :(
 
-This node must receive items with a binary property containing a DOCX document. The selected document will be rendered
+This node must receive items with a binary property containing a supported document (DOCX, XLSX, PPTX, ODT, ODS, ODP, ODG, HTML, XML, TXT, or CSV). The selected document will be converted
 into a PDF file using the LibreOffice renderer,
 since [according to one of the Carbone authors](https://github.com/carboneio/carbone/issues/41#issuecomment-528573164), "
 I tried to avoid LibreOffice because I wanted a tool really light and highly performant. But after many researches, I
@@ -202,10 +208,10 @@ Here's a checklist of changes that are required to make the node work on Docker 
 	- [ ] ~~Whenever you need to update the N8N version, remember to run `docker pull n8nio/n8n:latest` first, as
 		otherwise the build process will use a cached base image~~
 
-### A workaround for converting DOCX files to PDF on Docker
+### A workaround for converting documents to PDF on Docker
 
 Since the LibreOffice-Carbone-N8N-Alpine stack is currently not working, I'd recommend using a standalone dedicated
-container to do DOCX→PDF conversions, in the spirit of small, dedicated microservices and such.
+container to do document→PDF conversions, in the spirit of small, dedicated microservices and such.
 
 A cursory Google search turns up [Gotenberg](https://github.com/gotenberg/gotenberg), "A Docker-powered stateless API
 for PDF files." As usual, do your own research, deploying untrusted containers may make your lunch disappear, and all

@@ -4,8 +4,8 @@ import path from 'path';
 
 import carbone from 'carbone';
 
-import type {Readable} from 'stream';
-import {IBinaryData, IExecuteFunctions} from 'n8n-workflow';
+import type { Readable } from 'stream';
+import { IBinaryData, IExecuteFunctions } from 'n8n-workflow';
 
 // These two functions come straight from https://advancedweb.hu/secure-tempfiles-in-nodejs-without-dependencies/#solution,
 // plus typing. These should be safe (from pesky hackers and race conditions), and require no third-party dependencies
@@ -17,16 +17,36 @@ const withTempDir = async <T>(fn: (dirPath: string) => T): Promise<T> => {
 	try {
 		return await fn(dir);
 	} finally {
-		await fs.rm(dir, {recursive: true});
+		await fs.rm(dir, { recursive: true });
 	}
 };
 
-const isOfficeDocument = (data: IBinaryData) =>
-	[
-		'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-		'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-		'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-	].includes(data.mimeType);
+const MIME_TO_EXTENSION: Record<string, string> = {
+	// Microsoft Office formats
+	'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+	'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+	'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+	// OpenDocument formats
+	'application/vnd.oasis.opendocument.text': 'odt',
+	'application/vnd.oasis.opendocument.spreadsheet': 'ods',
+	'application/vnd.oasis.opendocument.presentation': 'odp',
+	'application/vnd.oasis.opendocument.graphics': 'odg',
+	// Web formats
+	'text/html': 'html',
+	'application/xhtml+xml': 'xhtml',
+	'application/xml': 'xml',
+	'text/xml': 'xml',
+	// Text formats
+	'text/plain': 'txt',
+	'text/csv': 'csv',
+};
+
+const SUPPORTED_MIME_TYPES = Object.keys(MIME_TO_EXTENSION);
+
+const isSupportedDocument = (data: IBinaryData) => SUPPORTED_MIME_TYPES.includes(data.mimeType);
+
+const getExtensionFromMimeType = (mimeType: string): string | undefined =>
+	MIME_TO_EXTENSION[mimeType];
 
 const buildOptions = (node: IExecuteFunctions, index: number): object => {
 	const additionalFields = node.getNodeParameter('options', index);
@@ -36,9 +56,11 @@ const buildOptions = (node: IExecuteFunctions, index: number): object => {
 	if (additionalFields.timezone) options.timezone = additionalFields.timezone;
 	if (additionalFields.lang) options.lang = additionalFields.lang;
 	if (additionalFields.variableStr) options.variableStr = additionalFields.variableStr;
-	if (additionalFields.complement) options.complement = JSON.parse(additionalFields.complement as string);
+	if (additionalFields.complement)
+		options.complement = JSON.parse(additionalFields.complement as string);
 	if (additionalFields.enum) options.enum = JSON.parse(additionalFields.enum as string);
-	if (additionalFields.translations) options.translations = JSON.parse(additionalFields.translations as string);
+	if (additionalFields.translations)
+		options.translations = JSON.parse(additionalFields.translations as string);
 
 	// console.debug(options)
 	return options;
@@ -69,10 +91,10 @@ const renderDocument = async (
 	});
 };
 
-const convertDocumentToPdf = async (document: Buffer): Promise<Buffer> => {
+const convertDocumentToPdf = async (document: Buffer, extension: string): Promise<Buffer> => {
 	var options = {
 		convertTo: 'pdf',
-		extension: 'docx',
+		extension,
 	};
 
 	return await new Promise((resolve, reject) => {
@@ -89,7 +111,9 @@ const convertDocumentToPdf = async (document: Buffer): Promise<Buffer> => {
 export {
 	withTempFile,
 	withTempDir,
-	isOfficeDocument,
+	isSupportedDocument,
+	getExtensionFromMimeType,
+	SUPPORTED_MIME_TYPES,
 	buildOptions,
 	renderDocument,
 	convertDocumentToPdf,
